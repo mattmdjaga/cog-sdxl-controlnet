@@ -6,7 +6,7 @@ import torch
 import shutil
 import numpy as np
 from PIL import Image
-from diffusers import ControlNetModel, StableDiffusionXLControlNetPipeline, AutoencoderKL
+from diffusers import ControlNetModel, StableDiffusionXLControlNetImg2ImgPipeline, AutoencoderKL
 from diffusers.utils import load_image
 
 CONTROL_MODEL = "diffusers/controlnet-canny-sdxl-1.0"
@@ -32,7 +32,7 @@ class Predictor(BasePredictor):
             torch_dtype=torch.float16
         )
         print("Loading sdxl")
-        pipe = StableDiffusionXLControlNetPipeline.from_pretrained(
+        pipe = StableDiffusionXLControlNetImg2ImgPipeline.from_pretrained(
             MODEL_CACHE,
             vae=better_vae,
             controlnet=controlnet,
@@ -96,6 +96,12 @@ class Predictor(BasePredictor):
             ge=0.0,
             le=1.0,
         ),
+        strength: float = Input(
+            description="Strength of noise in init image",
+            default=0.5,
+            ge=0.0,
+            le=1.0,
+        ),
         seed: int = Input(
             description="Random seed. Set to 0 to randomize the seed", default=0
         ),
@@ -113,6 +119,7 @@ class Predictor(BasePredictor):
         new_width, new_height = self.resize_to_allowed_dimensions(image_width, image_height)
         print("new_width:"+str(new_width)+", new_height:"+str(new_height))
         image = image.resize((new_width, new_height))
+        img = image.copy()
 
         image = np.array(image)
         image = cv2.Canny(image, 100, 200)
@@ -121,12 +128,14 @@ class Predictor(BasePredictor):
         image = Image.fromarray(image)
 
         images = self.pipe(
-            prompt, 
-            negative_prompt=negative_prompt, 
-            image=image, 
+            prompt,
+            negative_prompt=negative_prompt,
+            image=img,
+            control_image=image,
             controlnet_conditioning_scale=condition_scale,
             num_inference_steps=num_inference_steps,
-            generator=generator
+            generator=generator,
+            strength=strength,
         ).images
 
         output_path = f"/tmp/output.png"
