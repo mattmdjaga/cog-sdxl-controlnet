@@ -157,6 +157,25 @@ class Predictor(BasePredictor):
         )
         return closest_dimensions
 
+    def img2img_cany(self, image, prompt, negative_prompt, num_inference_steps, condition_scale, strength, generator):
+        image = np.array(image)
+        image = cv2.Canny(image, 100, 200)
+        image = image[:, :, None]
+        image = np.concatenate([image, image, image], axis=2)
+        image = Image.fromarray(image)
+        images = self.pipe(
+            prompt,
+            negative_prompt=negative_prompt,
+            image=image,
+            controlnet_conditioning_scale=condition_scale,
+            num_inference_steps=num_inference_steps,
+            generator=generator,
+            strength=strength,
+        ).images
+        return images
+        
+        
+
     @torch.inference_mode()
     def predict(
         self,
@@ -212,22 +231,10 @@ class Predictor(BasePredictor):
         src_image = src_image.resize((new_width, new_height))
         img = image.copy()
 
-        image = np.array(image)
-        image = cv2.Canny(image, 100, 200)
-        image = image[:, :, None]
-        image = np.concatenate([image, image, image], axis=2)
-        image = Image.fromarray(image)
+        images = self.img2img_cany(
+            img, prompt, negative_prompt, num_inference_steps, condition_scale, strength, generator
+        )
 
-        images = self.pipe(
-            prompt,
-            negative_prompt=negative_prompt,
-            image=img,
-            control_image=image,
-            controlnet_conditioning_scale=condition_scale,
-            num_inference_steps=num_inference_steps,
-            generator=generator,
-            strength=strength,
-        ).images
         args = [[src_image, images[0]]]
         gen_imgs = []
         frame_processors = ["face_swapper"]
