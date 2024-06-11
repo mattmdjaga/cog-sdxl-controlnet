@@ -12,5 +12,20 @@ build:
     - "accelerate"
     - "safetensors"
     - "opencv-python"
+    - "peft"
+    - "onnxruntime"
+    - "torchvision"
+    - "lpips"
+    - "insightface"
+    - "tensorflow"
+    - "customtkinter"
+    - "tkinterdnd2"
+    - "opennsfw2"
+    - "pydantic"
+    - "albumentations==1.4.3"
+  run:
+    - mkdir src
+    - git clone --recurse-submodules https://github.com/mattmdjaga/roop_custom.git
+    - cd roop_custom && git submodule update --init --recursive
 
 predict: "predict.py:Predictor"
