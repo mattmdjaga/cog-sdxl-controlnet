@@ -92,7 +92,7 @@ VAE_CACHE = "vae-cache"
 MODEL_CACHE = "sdxl-cache"
 LORA_CACHE = "lora-cache"
 
-os.environ['HUGGINGFACE_TOKEN'] = "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"
+os.environ['HUGGINGFACE_TOKEN'] = ""
 huggingface_token = os.getenv('HUGGINGFACE_TOKEN')
 huggingface_hub.login(huggingface_token)
 

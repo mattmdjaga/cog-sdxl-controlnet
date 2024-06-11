@@ -8,7 +8,7 @@ from diffusers import ControlNetModel, DiffusionPipeline, AutoencoderKL
 import huggingface_hub
 
 
-os.environ['HUGGINGFACE_TOKEN'] = "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"
+os.environ['HUGGINGFACE_TOKEN'] = ""
 huggingface_token = os.getenv('HUGGINGFACE_TOKEN')
 huggingface_hub.login(huggingface_token)
 
