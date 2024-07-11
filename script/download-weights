@@ -2,13 +2,15 @@
 
 # Run this before you deploy it on replicate
 import os
+import json
 import sys
 import torch
 from diffusers import ControlNetModel, DiffusionPipeline, AutoencoderKL
 import huggingface_hub
 
 
-os.environ['HUGGINGFACE_TOKEN'] = ""
+keys = json.load(open('keys.json'))
+os.environ['HUGGINGFACE_TOKEN'] = keys['hf']
 huggingface_token = os.getenv('HUGGINGFACE_TOKEN')
 huggingface_hub.login(huggingface_token)
 
@@ -47,6 +49,4 @@ pipe = DiffusionPipeline.from_pretrained(
 pipe.save_pretrained(MODEL_CACHE, safe_serialization=True)
 
 # LORA model
-huggingface_hub.hf_hub_download(LORA_NAME, "star_lora.safetensors", local_dir=LORA_CACHE)
-
-# ROOP setup code
+#huggingface_hub.hf_hub_download(LORA_NAME, "star_lora.safetensors", local_dir=LORA_CACHE)

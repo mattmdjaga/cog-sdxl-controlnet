@@ -1,0 +1,157 @@
+#!/usr/bin/env python
+
+# Run this before you deploy it on replicate
+import os
+import json
+import sys
+import torch
+import huggingface_hub
+from RealESRGAN import RealESRGAN
+
+from transformers import (
+    AutoImageProcessor,
+    Mask2FormerForUniversalSegmentation,
+    SegformerImageProcessor,
+    AutoModelForSemanticSegmentation,
+    AutoProcessor,
+    CLIPModel,
+)
+
+keys = json.load(open("keys.json"))
+os.environ["HUGGINGFACE_TOKEN"] = keys["hf"]
+huggingface_token = os.getenv("HUGGINGFACE_TOKEN")
+huggingface_hub.login(huggingface_token)
+
+# append project directory to path so predict.py can be imported
+sys.path.append(".")
+from predict import (
+    SEGFORMER_CACHE,
+    MASKFORMER_CACHE,
+    REALESRGAN_CACHE,
+    CLIP_CACHE_LARGE,
+    CLIP_CACHE_BASE,
+    SEGFORMER_MODEL,
+    MASKFORMER_MODEL,
+    CLIP_MODEL_LARGE,
+    CLIP_MODEL_BASE,
+)
+
+
+# Make cache folders
+if not os.path.exists(SEGFORMER_CACHE):
+    os.makedirs(SEGFORMER_CACHE)
+if not os.path.exists(MASKFORMER_CACHE):
+    os.makedirs(MASKFORMER_CACHE)
+if not os.path.exists(CLIP_CACHE_BASE):
+    os.makedirs(CLIP_CACHE_BASE)
+if not os.path.exists(CLIP_CACHE_LARGE):
+    os.makedirs(CLIP_CACHE_LARGE)
+
+
+processor_maskformer = AutoImageProcessor.from_pretrained(
+    MASKFORMER_MODEL, torch_dtype=torch.float16
+)
+model_maskformer = Mask2FormerForUniversalSegmentation.from_pretrained(
+    MASKFORMER_MODEL, torch_dtype=torch.float16
+)
+clip_models = [
+    (CLIP_MODEL_LARGE, CLIP_CACHE_LARGE),
+    (CLIP_MODEL_BASE, CLIP_CACHE_BASE),
+]
+processor_seg = SegformerImageProcessor.from_pretrained(
+    SEGFORMER_MODEL, torch_dtype=torch.float16
+)
+model_seg = AutoModelForSemanticSegmentation.from_pretrained(
+    SEGFORMER_MODEL, torch_dtype=torch.float16
+)
+
+# Save models
+processor_maskformer.save_pretrained(MASKFORMER_CACHE)
+model_maskformer.save_pretrained(MASKFORMER_CACHE)
+processor_seg.save_pretrained(SEGFORMER_CACHE)
+model_seg.save_pretrained(SEGFORMER_CACHE)
+
+for model_name, cache in clip_models:
+    model = CLIPModel.from_pretrained(model_name, torch_dtype=torch.float16)
+    model.save_pretrained(cache)
+    tokenizer = AutoProcessor.from_pretrained(model_name)
+    tokenizer.save_pretrained(cache)
+
+# Roop 
+sys.path.append("roop_custom/CodeFormer/CodeFormer")
+from basicsr.utils.download_util import load_file_from_url
+
+pretrain_model_url = {
+    "codeformer": "https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/codeformer.pth",
+    "detection": "https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/detection_Resnet50_Final.pth",
+    "parsing": "https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/parsing_parsenet.pth",
+    "realesrgan": "https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/RealESRGAN_x2plus.pth",
+}
+# download weights
+if not os.path.exists(
+    "roop_custom/CodeFormer/CodeFormer/weights/CodeFormer/codeformer.pth"
+):
+    load_file_from_url(
+        url=pretrain_model_url["codeformer"],
+        model_dir="roop_custom/CodeFormer/CodeFormer/weights/CodeFormer",
+        progress=True,
+        file_name=None,
+    )
+if not os.path.exists(
+    "roop_custom/CodeFormer/CodeFormer/weights/facelib/detection_Resnet50_Final.pth"
+):
+    load_file_from_url(
+        url=pretrain_model_url["detection"],
+        model_dir="roop_custom/CodeFormer/CodeFormer/weights/facelib",
+        progress=True,
+        file_name=None,
+    )
+if not os.path.exists(
+    "roop_custom/CodeFormer/CodeFormer/weights/facelib/parsing_parsenet.pth"
+):
+    load_file_from_url(
+        url=pretrain_model_url["parsing"],
+        model_dir="roop_custom/CodeFormer/CodeFormer/weights/facelib",
+        progress=True,
+        file_name=None,
+    )
+if not os.path.exists(
+    "roop_custom/CodeFormer/CodeFormer/weights/realesrgan/RealESRGAN_x2plus.pth"
+):
+    load_file_from_url(
+        url=pretrain_model_url["realesrgan"],
+        model_dir="roop_custom/CodeFormer/CodeFormer/weights/realesrgan",
+        progress=True,
+        file_name=None,
+    )
+
+
+from roop_custom.utils import (
+    get_codeformer_models,
+    encode_execution_providers,
+    decode_execution_providers,
+    suggest_execution_providers,
+    suggest_execution_threads,
+    inference_codeformer,
+)
+
+from roop_custom import roop
+from roop_custom.roop.utilities import normalize_output_path
+from roop_custom.roop.processors.frame.core import get_frame_processors_modules
+import concurrent.futures
+
+roop.globals.many_faces = False
+roop.globals.reference_face_position = 0
+roop.globals.reference_frame_number = 0
+roop.globals.similar_face_distance = 0.85
+roop.globals.execution_providers = decode_execution_providers(["cpu"])
+roop.globals.execution_threads = suggest_execution_threads()
+roop.globals.headless = True
+
+device = torch.device("cuda")
+model2 = RealESRGAN(device, scale=2)
+model2.load_weights("upscaler/RealESRGAN_x2.pth", download=True)
+
+frame_processors = ["face_swapper"]
+for frame_processor in get_frame_processors_modules(frame_processors):
+    frame_processor.pre_check()
